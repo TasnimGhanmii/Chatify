@@ -1,115 +1,99 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View, Button, ImageBackground } from 'react-native';
+import { useState, useRef } from 'react';
+import { StyleSheet, Text, TextInput, View, TouchableOpacity, Animated, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import firebase from '../config';
 
-import firebase from '../config'
-const auth=firebase.auth()
+const auth = firebase.auth();
+
 export default function CreateUser(props) {
- const [email,setemail] = useState("A")
- const [password,setpassword] = useState("zayneb")
- const [confirmedpassword, setconfirmedpassword] = useState("")
- 
- 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmedPassword, setConfirmedPassword] = useState('');
+
+  const submitAnim = useRef(new Animated.Value(1)).current;
+
+  const handleSubmit = () => {
+    // Animate button press
+    Animated.sequence([
+      Animated.timing(submitAnim, { toValue: 0.8, duration: 100, useNativeDriver: true }),
+      Animated.timing(submitAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+
+    if (password !== confirmedPassword) {
+      alert('Verify your password');
+      return;
+    }
+
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(() => {
+        const uid = auth.currentUser.uid;
+        props.navigation.replace('Home', { currentId: uid });
+      })
+      .catch((error) => alert(error.message));
+  };
+
   return (
     <ImageBackground
       source={require('../assets/bg.jpg')}
-      style={styles.container}>
-      
-      <View
-        style={{
-          height: 360,
-          width: "95%",
-          borderRadius: 16,
-          backgroundColor: "#f3f2d3c2",
-          alignItems: "center",
-          padding: 20,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.08,
-          shadowRadius: 18,
-          elevation: 8,
-        }}>
-        
-        <Text style={{
-          backgroundColor: "transparent",
-          fontWeight: "500",
-          fontSize: 26,
-          color: "#AEC16F",
-          marginBottom: 12,
-        }}>Create a New User</Text>
+      style={styles.container}
+    >
+      <LinearGradient colors={['#FFD6EB', '#FDEBFF']} style={styles.card}>
+        <Text style={styles.title}>Create a New User</Text>
 
-       
+        <LinearGradient colors={['#FFE7F7', '#FFD6EB']} style={styles.inputWrapper}>
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#c88bb1"
+            style={styles.input}
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+        </LinearGradient>
 
-        <TextInput
-         onChangeText={(text)=>{setemail(text)}}
-         
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#9b9b9b"
-        />
+        <LinearGradient colors={['#FFE7F7', '#FFD6EB']} style={styles.inputWrapper}>
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#c88bb1"
+            style={styles.input}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+        </LinearGradient>
 
-        <TextInput
-        onChangeText={(text)=>{setpassword(text)}}
-          style={styles.input}
-          placeholder="Password"
-          
-          placeholderTextColor="#9b9b9b"
-          secureTextEntry
-        />
-         <TextInput
-         onChangeText={(text)=>{setconfirmedpassword(text)}}
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor="#9b9b9b"
-          secureTextEntry
-        />
+        <LinearGradient colors={['#FFE7F7', '#FFD6EB']} style={styles.inputWrapper}>
+          <TextInput
+            placeholder="Confirm Password"
+            placeholderTextColor="#c88bb1"
+            style={styles.input}
+            secureTextEntry
+            value={confirmedPassword}
+            onChangeText={setConfirmedPassword}
+          />
+        </LinearGradient>
 
-        <View style={{ flexDirection: "row", marginTop: 20 }}>
-          <View style={styles.buttonWrapper}>
-            <Button title="Submit" color="#AEC16F" onPress={() => 
-              {
-                if (password===confirmedpassword)
-                {
-                     auth.createUserWithEmailAndPassword(email,password)
-                     .then(()=>{
-                       const uid=auth.currentUser.uid
-                      props.navigation.replace('Home',{
-                        currentId:uid
-                      })
-                     }
-                    )
-                     .catch((error)=>{
-                      alert(error)
-                     })
-                     
-                ;
-                    
-                }
-                else{
-                  alert("verify your password")
-                }
-              }
-            } />
-          </View>
-          <View style={styles.buttonWrapper}>
-            <Button title="Exit" color="#AEC16F" />
-          </View>
+        <View style={styles.buttonRow}>
+          <Animated.View style={{ transform: [{ scale: submitAnim }] }}>
+            <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+              <Text style={styles.buttonText}>Submit</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <TouchableOpacity style={styles.button} onPress={() => props.navigation.goBack()}>
+            <Text style={styles.buttonText}>Exit</Text>
+          </TouchableOpacity>
         </View>
 
         <Text
-          style={{
-            width: "100%",
-            textAlign: "center",
-            fontSize: 14,
-            color: "#6e6e73",
-            marginTop: 14,
-            textDecorationLine: "underline",
-          }}
-          onPress={() => props.navigation?.goBack()}>
+          style={styles.backText}
+          onPress={() => props.navigation?.goBack()}
+        >
           Back to Login
         </Text>
+      </LinearGradient>
 
-      </View>
       <StatusBar style="auto" />
     </ImageBackground>
   );
@@ -123,26 +107,66 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 30,
   },
+  card: {
+    width: '95%',
+    borderRadius: 20,
+    padding: 25,
+    alignItems: 'center',
+    shadowColor: '#FFB6E6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#FF84B7',
+    marginBottom: 20,
+  },
+  inputWrapper: {
+    width: '100%',
+    borderRadius: 30,
+    marginBottom: 12,
+    padding: 2,
+  },
   input: {
     height: 50,
-    width: "95%",
-    borderRadius: 30,           // identique à Auth
     paddingHorizontal: 14,
-    marginBottom: 12,
-    backgroundColor: "#fafafa",
-    borderWidth: 2,
-    borderColor: "#AEC16F",     // identique à Auth
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.8)',
     fontSize: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
+    color: '#333',
   },
-  buttonWrapper: {
-    marginHorizontal: 8,
-    borderRadius: 10,
-    overflow: "hidden",
-    width: 120,
+  buttonRow: {
+    flexDirection: 'row',
+    marginTop: 20,
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    backgroundColor: '#FF84B7',
+    paddingVertical: 12,
+    borderRadius: 30,
+    alignItems: 'center',
+    marginHorizontal: 5,
+    shadowColor: '#FFB6E6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  backText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#FF84B7',
+    textDecorationLine: 'underline',
   },
 });

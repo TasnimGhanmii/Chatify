@@ -1,237 +1,190 @@
-import { View, Text, ImageBackground, FlatList, TextInput, TouchableOpacity } from 'react-native'
-import { StyleSheet } from 'react-native'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ImageBackground, FlatList, TextInput, TouchableOpacity, Animated, Easing } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import firebase from '../config';
 
-const database = firebase.database();
-const ref_all_Discussion = database.ref("All_Discussion");
-
 export default function Chat(props) {
-
   const currentId = props.route.params.currentId;
   const secondId = props.route.params.secondId;
 
-  // Unique discussion ID
-  const disc_id = currentId > secondId ? currentId + secondId : secondId + currentId;
-  const ref_discussion = ref_all_Discussion.child(disc_id);
-  
-  // Correct typing references for both users
-  const ref_currentUserTyping = ref_discussion.child(currentId + " is Typing");
-  const ref_secondisTyping = ref_discussion.child(secondId + " is Typing");
+  const [secondName, setSecondName] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [secondIsTyping, setSecondIsTyping] = useState(false);
 
-  const [Input, setInput] = useState("");
-  const [Messages, setMessages] = useState([]);
-  const [secondisTyping, setsecondisTyping] = useState(false);
+  const popAnimations = useRef({}).current;
 
-  // ⬇️ LISTEN TO MESSAGES FROM FIREBASE
+  const discId = currentId > secondId ? currentId + secondId : secondId + currentId;
+  const refDiscussion = firebase.database().ref("All_Discussion").child(discId);
+  const refCurrentTyping = refDiscussion.child(currentId + " is Typing");
+  const refSecondTyping = refDiscussion.child(secondId + " is Typing");
+
+  // Fetch second user's name
   useEffect(() => {
-    const ref_message = ref_discussion.child("Message");
+    const refAccount = firebase.database().ref("Accounts").child(secondId);
+    refAccount.once("value").then(snapshot => {
+      if (snapshot.exists()) setSecondName(snapshot.val().Nom || 'Unknown');
+    });
+  }, [secondId]);
 
-    const messageListener = ref_message.on("value", (snapshot) => {
+  // Listen to messages & typing
+  useEffect(() => {
+    const refMessages = refDiscussion.child("Message");
+
+    const messageListener = refMessages.on("value", snapshot => {
       if (snapshot.exists()) {
         const all = Object.values(snapshot.val());
         setMessages(all);
+
+        // Create animations for new messages
+        all.forEach(msg => {
+          if (!popAnimations[msg.idmsg]) popAnimations[msg.idmsg] = new Animated.Value(0);
+        });
+
+        all.forEach(msg => {
+          Animated.spring(popAnimations[msg.idmsg], {
+            toValue: 1,
+            useNativeDriver: true,
+            friction: 7,
+          }).start();
+        });
       }
     });
 
-    const typingListener = ref_secondisTyping.on("value", (snapshot) => {
-      setsecondisTyping(snapshot.val() === true);
+    const typingListener = refSecondTyping.on("value", snapshot => {
+      setSecondIsTyping(snapshot.val() === true);
     });
 
     return () => {
-      ref_message.off("value", messageListener);
-      ref_secondisTyping.off("value", typingListener);
+      refMessages.off("value", messageListener);
+      refSecondTyping.off("value", typingListener);
     };
   }, []);
 
-  // SEND MESSAGE
   const sendMessage = () => {
-    if (!Input || Input.trim().length === 0) return;
+    if (!input || input.trim() === '') return;
+    const refMsg = refDiscussion.child("Message");
+    const keyMsg = refMsg.push().key;
+    const newMsgRef = refMsg.child(keyMsg);
 
-    const ref_message = ref_discussion.child("Message");
-    const keymsg = ref_message.push().key;
-
-    const ref_un_msg = ref_message.child(keymsg);
-
-    ref_un_msg.set({
-      idmsg: keymsg,
+    newMsgRef.set({
+      idmsg: keyMsg,
       sender: currentId,
       receiver: secondId,
-      message: Input,
-      time: new Date().toLocaleString()
-    }).then(() => {
-      setInput("");  
-    });
+      message: input,
+      time: new Date().toLocaleTimeString(),
+    }).then(() => setInput(''));
   };
 
-  // RENDER MESSAGE STYLE
   const renderMessage = ({ item }) => {
     const isMe = item.sender === currentId;
     return (
-      <View style={[styles.msgBubble, isMe ? styles.myMsg : styles.otherMsg]}>
-        <Text style={styles.msgText}>{item.message}</Text>
-        <Text style={styles.msgTime}>{item.time}</Text>
+      <Animated.View style={{ 
+        transform: [{ scale: popAnimations[item.idmsg] || 1 }],
+        alignSelf: isMe ? 'flex-end' : 'flex-start',
+        marginVertical: 5,
+      }}>
+        <View style={[styles.msgBubble, isMe ? styles.myMsg : styles.otherMsg]}>
+          {!isMe && <Text style={styles.senderName}>{secondName}</Text>}
+          <Text style={styles.msgText}>{item.message}</Text>
+          <Text style={styles.msgTime}>{item.time}</Text>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  // Typing bubble component with bouncing dots
+  const TypingBubble = () => {
+    const dotAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      if (input.length === 0) return; // only animate if typing
+
+      dotAnim.setValue(0); // reset
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(dotAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dotAnim, { toValue: 2, duration: 300, useNativeDriver: true }),
+          Animated.timing(dotAnim, { toValue: 3, duration: 300, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+
+      return () => loop.stop(); // cleanup
+    }, [input.length]);
+
+    const dot1Y = dotAnim.interpolate({ inputRange: [0,1,2,3], outputRange: [0,-5,0,0] });
+    const dot2Y = dotAnim.interpolate({ inputRange: [0,1,2,3], outputRange: [0,0,-5,0] });
+    const dot3Y = dotAnim.interpolate({ inputRange: [0,1,2,3], outputRange: [0,0,0,-5] });
+
+    return (
+      <View style={styles.typingBubble}>
+        <Animated.View style={[styles.dot, { transform: [{ translateY: dot1Y }] }]} />
+        <Animated.View style={[styles.dot, { transform: [{ translateY: dot2Y }] }]} />
+        <Animated.View style={[styles.dot, { transform: [{ translateY: dot3Y }] }]} />
       </View>
     );
   };
 
   return (
-    <ImageBackground
-      source={require("../assets/bg.jpg")}
-      style={styles.container}
-    >
-
+    <ImageBackground source={require("../assets/bg.jpg")} style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.headerText}>Chat With {secondId}</Text>
-
+        <Text style={styles.headerText}>Chat with {secondName}</Text>
         <View style={styles.headerIcons}>
-          <Ionicons name="chatbubbles" size={26} color="#AEC16F" style={styles.icon} />
-          <Ionicons name="call" size={26} color="#AEC16F" style={styles.icon} />
+          <Ionicons name="chatbubbles" size={26} color="#FF84B7" style={styles.icon} />
+          <Ionicons name="call" size={26} color="#FF84B7" style={styles.icon} />
         </View>
       </View>
 
-      {/* MESSAGES LIST */}
-      <View style={styles.messagesContainer}>
-        <FlatList
-          data={Messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.idmsg}
-        />
-      </View>
+      {/* MESSAGES */}
+      <FlatList
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.idmsg}
+        contentContainerStyle={{ padding: 10 }}
+      />
 
-      {/* TYPING INDICATOR */}
-      {secondisTyping && (
-        <View style={styles.typingIndicator}>
-          <Text style={styles.typingText}>{secondId} is typing...</Text>
-        </View>
-      )}
+      {/* TYPING BUBBLE */}
+      {secondIsTyping && <TypingBubble />}
 
       {/* INPUT BAR */}
       <View style={styles.inputContainer}>
-
-        <TouchableOpacity>
-          <Ionicons name="link" size={26} color="#AEC16F" />
-        </TouchableOpacity>
-
         <TextInput
           placeholder="Type a message..."
           placeholderTextColor="#ccc"
           style={styles.input}
-          value={Input}
-          onChangeText={setInput}
-          onFocus={() => {
-            ref_currentUserTyping.set(true);
+          value={input}
+          onChangeText={text => {
+            setInput(text);
+            refCurrentTyping.set(text.length > 0);
           }}
-          onBlur={() => {
-            ref_currentUserTyping.set(false);
-          }}
+          onBlur={() => refCurrentTyping.set(false)}
         />
-
-        <TouchableOpacity>
-          <Ionicons name="happy" size={26} color="#AEC16F" />
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
           <Ionicons name="send" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
-
     </ImageBackground>
   )
 }
 
 const styles = StyleSheet.create({
-  container:{
-    flex:1,
-    paddingTop:40,
-    backgroundColor:"rgba(0,0,0,0.3)"
-  },
-
-  header:{
-    flexDirection:"row",
-    justifyContent:"space-between",
-    alignItems:"center",
-    paddingHorizontal:20,
-    paddingVertical:15,
-    backgroundColor:"#fff",
-  },
-
-  headerText:{
-    fontSize:22,
-    color:"#AEC16F",
-    fontWeight:"bold"
-  },
-
-  headerIcons:{
-    flexDirection:"row",
-  },
-  icon:{
-    marginLeft:15
-  },
-
-  messagesContainer:{
-    flex:1,
-    paddingHorizontal:15,
-    marginTop:10,
-  },
-
-  msgBubble:{
-    maxWidth:"75%",
-    padding:10,
-    borderRadius:10,
-    marginVertical:5,
-  },
-  myMsg:{
-    backgroundColor:"#AEC16F",
-    alignSelf:"flex-end",
-  },
-  otherMsg:{
-    backgroundColor:"#fff",
-    alignSelf:"flex-start",
-  },
-  msgText:{
-    fontSize:16,
-    color:"#000"
-  },
-  msgTime:{
-    fontSize:10,
-    color:"#555",
-    marginTop:5,
-    textAlign:"right"
-  },
-
-  typingIndicator:{
-    paddingHorizontal:20,
-    paddingVertical:5,
-  },
-  typingText:{
-    fontSize:12,
-    color:"#fff",
-    fontStyle:"italic"
-  },
-
-  inputContainer:{
-    flexDirection:"row",
-    alignItems:"center",
-    backgroundColor:"#fff",
-    padding:10,
-    borderRadius:30,
-    marginHorizontal:10,
-    marginBottom:15,
-    elevation:4,
-  },
-  input:{
-    flex:1,
-    marginHorizontal:10,
-    color:"#000",
-    fontSize:16,
-  },
-  sendButton:{
-    backgroundColor:"#AEC16F",
-    padding:3,
-    borderRadius:50,
-    marginLeft:8,
-  }
+  container: { flex: 1, backgroundColor: '#FDEBFF', paddingTop: 40 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#fff', borderBottomLeftRadius: 20, borderBottomRightRadius: 20, elevation: 5 },
+  headerText: { fontSize: 22, color: '#FF84B7', fontWeight: 'bold' },
+  headerIcons: { flexDirection: 'row' },
+  icon: { marginLeft: 15 },
+  msgBubble: { maxWidth: '75%', padding: 10, borderRadius: 15, backgroundColor: '#fff', shadowColor: '#FFB6E6', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 4 },
+  myMsg: { backgroundColor: '#FF84B7' },
+  otherMsg: { backgroundColor: '#fff' },
+  senderName: { fontWeight: '600', color: '#FF84B7', marginBottom: 3 },
+  msgText: { fontSize: 16, color: '#000' },
+  msgTime: { fontSize: 10, color: '#555', marginTop: 3, textAlign: 'right' },
+  typingBubble: { flexDirection: 'row', backgroundColor: '#fff', padding: 8, borderRadius: 20, alignSelf: 'flex-start', marginLeft: 5, marginBottom: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF84B7', marginHorizontal: 2 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 10, borderRadius: 30, margin: 10, elevation: 5 },
+  input: { flex: 1, paddingHorizontal: 14, fontSize: 16, color: '#333' },
+  sendButton: { backgroundColor: '#FF84B7', padding: 10, borderRadius: 50, marginLeft: 8, alignItems: 'center', justifyContent: 'center' },
 });
