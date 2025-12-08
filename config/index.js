@@ -21,8 +21,9 @@ app.database()
 export default firebase;
 
 //init supabase
+
 import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = 'https://gbtjxnopfujqnpirlcxi.supabase.co'
-const supabaseKey = 'sb_publishable_YbhcWskerQtQYrP6KywQ9w_5F7onlyA'
+const supabaseKey = "sb_secret_1xoz6rx4iHbfcqsCJpYuEA_VZ0EW51V"
 const supabase = createClient(supabaseUrl, supabaseKey)
 export {supabase};

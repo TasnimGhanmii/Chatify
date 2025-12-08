@@ -13,7 +13,6 @@ export default function Auth(props) {
   const submitAnim = useRef(new Animated.Value(1)).current;
 
   const handleSignIn = () => {
-    // Animate button
     Animated.sequence([
       Animated.timing(submitAnim, { toValue: 0.8, duration: 100, useNativeDriver: true }),
       Animated.timing(submitAnim, { toValue: 1, duration: 100, useNativeDriver: true }),

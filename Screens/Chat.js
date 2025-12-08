@@ -28,7 +28,7 @@ export default function Chat(props) {
     });
   }, [secondId]);
 
-  // Listen to messages & typing
+  //ecoute messages & typing
   useEffect(() => {
     const refMessages = refDiscussion.child("Message");
 
@@ -37,7 +37,6 @@ export default function Chat(props) {
         const all = Object.values(snapshot.val());
         setMessages(all);
 
-        // Create animations for new messages
         all.forEach(msg => {
           if (!popAnimations[msg.idmsg]) popAnimations[msg.idmsg] = new Animated.Value(0);
         });
@@ -78,58 +77,34 @@ export default function Chat(props) {
   };
 
   const renderMessage = ({ item }) => {
-    const isMe = item.sender === currentId;
-    return (
-      <Animated.View style={{ 
-        transform: [{ scale: popAnimations[item.idmsg] || 1 }],
-        alignSelf: isMe ? 'flex-end' : 'flex-start',
-        marginVertical: 5,
-      }}>
-        <View style={[styles.msgBubble, isMe ? styles.myMsg : styles.otherMsg]}>
-          {!isMe && <Text style={styles.senderName}>{secondName}</Text>}
+  const isMe = item.sender === currentId;
+  return (
+    <Animated.View style={{ 
+      transform: [{ scale: popAnimations[item.idmsg] || 1 }],
+      alignSelf: isMe ? 'flex-end' : 'flex-start',
+      marginVertical: 5,
+    }}>
+      <View style={[styles.msgBubble, isMe ? styles.myMsg : styles.otherMsg]}>
+        {!isMe && <Text style={styles.senderName}>{secondName}</Text>}
+        {item.isFile ? (
+          <TouchableOpacity onPress={() => Linking.openURL(item.message)}>
+            <Text style={{ color: '#007AFF' }}>{item.fileName}</Text>
+          </TouchableOpacity>
+        ) : (
           <Text style={styles.msgText}>{item.message}</Text>
-          <Text style={styles.msgTime}>{item.time}</Text>
-        </View>
-      </Animated.View>
-    );
-  };
-
-  // Typing bubble component with bouncing dots
-  const TypingBubble = () => {
-    const dotAnim = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-      if (input.length === 0) return; // only animate if typing
-
-      dotAnim.setValue(0); // reset
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(dotAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(dotAnim, { toValue: 2, duration: 300, useNativeDriver: true }),
-          Animated.timing(dotAnim, { toValue: 3, duration: 300, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-
-      return () => loop.stop(); // cleanup
-    }, [input.length]);
-
-    const dot1Y = dotAnim.interpolate({ inputRange: [0,1,2,3], outputRange: [0,-5,0,0] });
-    const dot2Y = dotAnim.interpolate({ inputRange: [0,1,2,3], outputRange: [0,0,-5,0] });
-    const dot3Y = dotAnim.interpolate({ inputRange: [0,1,2,3], outputRange: [0,0,0,-5] });
-
-    return (
-      <View style={styles.typingBubble}>
-        <Animated.View style={[styles.dot, { transform: [{ translateY: dot1Y }] }]} />
-        <Animated.View style={[styles.dot, { transform: [{ translateY: dot2Y }] }]} />
-        <Animated.View style={[styles.dot, { transform: [{ translateY: dot3Y }] }]} />
+        )}
+        <Text style={styles.msgTime}>{item.time}</Text>
       </View>
-    );
-  };
+    </Animated.View>
+  );
+};
+
+
+ 
 
   return (
     <ImageBackground source={require("../assets/bg.jpg")} style={styles.container}>
-      {/* HEADER */}
+      {/*top header*/}
       <View style={styles.header}>
         <Text style={styles.headerText}>Chat with {secondName}</Text>
         <View style={styles.headerIcons}>
@@ -138,7 +113,7 @@ export default function Chat(props) {
         </View>
       </View>
 
-      {/* MESSAGES */}
+      {/* message */}
       <FlatList
         data={messages}
         renderItem={renderMessage}
@@ -146,10 +121,13 @@ export default function Chat(props) {
         contentContainerStyle={{ padding: 10 }}
       />
 
-      {/* TYPING BUBBLE */}
-      {secondIsTyping && <TypingBubble />}
+      {/* typing */}
+      {secondIsTyping && (
+  <View style={{ marginLeft: 15, marginBottom: 10 }}>
+    <Text style={{ color: '#FF84B7', fontStyle: 'italic' }}>typing...</Text>
+  </View>
+)}
 
-      {/* INPUT BAR */}
       <View style={styles.inputContainer}>
         <TextInput
           placeholder="Type a message..."

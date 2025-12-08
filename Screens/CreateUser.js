@@ -13,25 +13,40 @@ export default function CreateUser(props) {
 
   const submitAnim = useRef(new Animated.Value(1)).current;
 
-  const handleSubmit = () => {
-    // Animate button press
-    Animated.sequence([
-      Animated.timing(submitAnim, { toValue: 0.8, duration: 100, useNativeDriver: true }),
-      Animated.timing(submitAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
-    ]).start();
+  const handleSubmit = async () => {
+  // animated button press
+  Animated.sequence([
+    Animated.timing(submitAnim, { toValue: 0.8, duration: 100, useNativeDriver: true }),
+    Animated.timing(submitAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+  ]).start();
 
-    if (password !== confirmedPassword) {
-      alert('Verify your password');
-      return;
-    }
+  if (password !== confirmedPassword) {
+    alert('Verify your password');
+    return;
+  }
 
-    auth.createUserWithEmailAndPassword(email, password)
-      .then(() => {
-        const uid = auth.currentUser.uid;
-        props.navigation.replace('Home', { currentId: uid });
-      })
-      .catch((error) => alert(error.message));
-  };
+  try {
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const uid = userCredential.user.uid;
+
+    // Add the new user to Realtime Database
+    const database = firebase.database();
+    const ref_all_account = database.ref().child("Accounts");
+    await ref_all_account.child(uid).set({
+      Id: uid,
+      Email: email,
+      Nom: "",
+      Pseudo: "Anonyme",
+      Numero: "",
+      UserImage: null,
+    });
+
+    props.navigation.replace('Account', { currentId: uid });
+  } catch (error) {
+    alert(error.message);
+  }
+};
+
 
   return (
     <ImageBackground
